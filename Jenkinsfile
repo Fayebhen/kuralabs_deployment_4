@@ -28,7 +28,7 @@ pipeline {
        
       }
     }
-   
+   /*
      stage('Init') {
        steps {
         withCredentials([string(credentialsId: 'AWS_ACCESS_KEY', variable: 'aws_access_key'), 
@@ -39,6 +39,7 @@ pipeline {
          }
     }
    }
+     
       stage('Plan') {
        steps {
         withCredentials([string(credentialsId: 'AWS_ACCESS_KEY', variable: 'aws_access_key'), 
@@ -59,7 +60,7 @@ pipeline {
          }
     }
    }
-/*     
+     
      stage('Destroy') {
       steps {
         withCredentials([string(credentialsId: 'AWS_ACCESS_KEY', variable: 'aws_access_key'),
@@ -71,5 +72,32 @@ pipeline {
             }
         }
 */
-    }
- }
+     stage ('Clean') {
+                agent{label 'awsDeploy'}
+                    steps {
+                        sh '''#!/bin/bash
+                        if [[ $(ps aux | grep -i "gunicorn" | tr -s " " | head -n 1 | cut -d " " -f 2) != 0 ]]
+                        then
+                        ps aux | grep -i "gunicorn" | tr -s " " | head -n 1 | cut -d " " -f 2 > pid.txt
+                        kill $(cat pid.txt)
+                        exit 0
+                        fi
+                        '''
+                    }
+                }
+            stage ('Deploy') {
+            agent{label 'awsDeploy'}
+                steps {
+                    keepRunning {
+                        sh '''#!/bin/bash
+                        pip install -r requirements.txt
+                        pip install gunicorn
+                        python3 -m gunicorn -w 4 application:app -b 0.0.0.0:5000 --daemon
+                        '''
+                        emailext attachLog: true, body: 'This is a deployment stage test', subject: 'Test Email', to: 'fbhenry08@gmail.com'
+                    }
+                }   
+            } 
+     
+    }   
+}  
